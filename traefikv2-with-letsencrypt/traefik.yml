@@ -1,0 +1,42 @@
+## STATIC CONFIGURATION
+log:
+  level: DEBUG
+
+#accesslog
+
+api:
+  insecure: true
+  dashboard: false
+
+pilot:
+    token: "8b9b0234-36f6-4326-9caf-c21a519d71a9"
+
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+  ws:
+    address: ":8080"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+  file:
+    filename: traefik_dynamic.yml
+
+certificatesResolvers:
+  lets-encr:
+    acme:
+      #caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      email: example@saiyans.com.ve
+      storage: acme.json
+      dnsChallenge:
+        provider: cloudflare
+        resolvers:
+          - "1.1.1.1:53"
+          - "8.8.8.8:53"
+
+
+

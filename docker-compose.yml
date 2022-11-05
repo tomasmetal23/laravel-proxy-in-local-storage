@@ -2,31 +2,67 @@ version: '3.4'
 
 services:
 
-  traefik: 
+  traefik:
     image: "traefik:latest"
     container_name: "traefik"
     hostname: "traefik"
+    env_file:
+      - .env
     ports:
       - "80:80"
       - "443:443"
+      - "8080:8080"
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "./traefikv2-with-letsencrypt/traefik.toml:/traefik.toml"
-      - "./traefikv2-with-letsencrypt/traefik_dynamic.toml:/traefik_dynamic.toml"
-      - "./traefikv2-with-letsencrypt/acme.json:/acme.json"
-    networks:
-      - web
+       #Podman
+      - "/run/podman/podman.sock:/var/run/docker.sock:ro"
+       #Docker
+      #- "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./traefikv2-with-letsencrypt/traefik.yml:/traefik.yml:ro"
+      - "./traefikv2-with-letsencrypt/traefik_dynamic.yml:/traefik_dynamic.yml:rw"
+      - "./traefikv2-with-letsencrypt/acme.json:/acme.json:rw"  
+      #- "./users_credentials:/users_credentials:ro"
+    labels:
+      - "traefik.enable=true"
+      ## DNS CHALLENGE
+      - "traefik.http.routers.traefik.tls.certresolver=lets-encr"
+      - "traefik.http.routers.traefik.tls.domains[0].main=*.$MY_DOMAIN"
+      - "traefik.http.routers.traefik.tls.domains[0].sans=$MY_DOMAIN"
+      ## HTTP REDIRECT
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.redirect-https.rule=hostregexp(`{host:.+}`)"
+      - "traefik.http.routers.redirect-https.entrypoints=web"
+      - "traefik.http.routers.redirect-https.middlewares=redirect-to-https"
+      ## triying to make work dashboard
+      #- "traefik.http.routers.traefik.rule=Host(`monitor.$MY_DOMAIN`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.middlewares=auth-middleware"
+#      - "traefik.http.routers.traefik.middlewares=authtraefik"
+#      - "traefik.http.middlewares.authtraefik.basicauth.users=$MY_USER"
+#      - "traefik.http.middlewares.auth-middleware.basicauth.usersfile=/users_credentials"
+      - "traefik.http.routers.app-secure.middlewares=sslheader@docker"
+      ##WEBSOCKET CONNECTIONS ENABLE
+      - "traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https"
+    command:
+#      - "--accesslog"
+      - "--providers.docker"
+    privileged: true 
 
+  certdumper:
+    image: humenius/traefik-certs-dumper:latest
+    volumes:
+      - "./traefikv2-with-letsencrypt:/traefik:ro"
+      - "./output:/output:rw"
   mariadb:
     image: docker.io/bitnami/mariadb:latest
     env_file:
-      - variables.env
+      - .env
     environment:
-      - ALLOW_EMPTY_PASSWORD=yes
-      - MARIADB_USER=${DATABASE_USER}
-    #  - MARIADB_ROOT_PASSWORD=${ROOT_PASS}
-    #  - MARIADB_PASSWORD=${USER_PASS}
-      - MARIADB_DATABASE=${DATABASE_APP}
+      #- ALLOW_EMPTY_PASSWORD=yes
+      - MARIADB_USER=$MARIADB_USER
+      - MARIADB_ROOT_PASSWORD=$MARIADB_ROOT_PASSWORD
+      - MARIADB_PASSWORD=$MARIADB_PASSWORD
+      - MARIADB_DATABASE=$MARIADB_DATABASE
     healthcheck:
       test: ['CMD', '/opt/bitnami/scripts/mariadb/healthcheck.sh']
       interval: 15s
@@ -41,11 +77,11 @@ services:
   adminer:
     image: adminer:4.8.0-standalone
     env_file:
-      - variables.env
+      - .env
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.adminer.entrypoints=websecure"
-      - "traefik.http.routers.adminer.rule=Host(`${ADMINERDOMAIN}`)"
+      - "traefik.http.routers.adminer.rule=Host(`$ADMINERDOMAIN`)"
       - "traefik.http.routers.adminer.tls.certresolver=lets-encr"
     networks:
       - database
@@ -59,22 +95,22 @@ services:
       context: .
       dockerfile: ./Dockerfile
     env_file:
-      - variables.env
+      - .env
     ports:
       - '8000'
     environment:
-      - DB_HOST=mariadb
-      - DB_PORT=3306
-      - DB_USERNAME=${DATABASE_USER}
-      - DB_DATABASE=${DATABASE_APP}
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_USERNAME: $MARIADB_USER
+      DB_DATABASE: $MARIADB_DATABASE
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.my-laravel-app.entrypoints=websecure"
-      - "traefik.http.routers.my-laravel-app.rule=Host(`${APPDOMAIN}`)"
+      - "traefik.http.routers.my-laravel-app.rule=Host(`$APPDOMAIN`)"
       - "traefik.http.routers.my-laravel-app.tls.certresolver=lets-encr"
       - "traefik.http.services.my-laravel-app.loadbalancer.server.port=8000"
     volumes:
-      - 'my-laravel-app:/laravel/src/app'
+      - 'my-laravel-app:/app'
     networks:
       database:
         ipv4_address: 10.89.2.3
@@ -97,7 +133,7 @@ services:
   #  labels:
   #    - "traefik.enable=true"
   #    - "traefik.http.routers.portainer.entrypoints=websecure"
-  #    - "traefik.http.routers.portainer.rule=Host(`${PORTAINERDOMAIN}`)"
+  #    - "traefik.http.routers.portainer.rule=Host(`$PORTAINERDOMAIN`)"
   #    - "traefik.http.routers.portainer.tls.certresolver=lets-encr"  
 
 
@@ -116,8 +152,11 @@ networks:
         - subnet: "10.89.2.0/24"
 
 volumes:
+  traefikv2-with-letsencrypt:
+    driver: local
   #portainer_data:
   mariadb_data:
     driver: local
   my-laravel-app:
     driver: local
+  

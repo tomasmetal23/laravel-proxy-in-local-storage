@@ -1,0 +1,123 @@
+version: '3.4'
+
+services:
+
+  traefik: 
+    image: "traefik:latest"
+    container_name: "traefik"
+    hostname: "traefik"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./traefikv2-with-letsencrypt/traefik.toml:/traefik.toml"
+      - "./traefikv2-with-letsencrypt/traefik_dynamic.toml:/traefik_dynamic.toml"
+      - "./traefikv2-with-letsencrypt/acme.json:/acme.json"
+    networks:
+      - web
+
+  mariadb:
+    image: docker.io/bitnami/mariadb:latest
+    env_file:
+      - variables.env
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - MARIADB_USER=${DATABASE_USER}
+    #  - MARIADB_ROOT_PASSWORD=${ROOT_PASS}
+    #  - MARIADB_PASSWORD=${USER_PASS}
+      - MARIADB_DATABASE=${DATABASE_APP}
+    healthcheck:
+      test: ['CMD', '/opt/bitnami/scripts/mariadb/healthcheck.sh']
+      interval: 15s
+      timeout: 5s
+      retries: 6
+    volumes:
+      - 'mariadb_data:/bitnami/mariadb'
+    networks:
+      database:
+        ipv4_address: 10.89.2.2
+
+  adminer:
+    image: adminer:4.8.0-standalone
+    env_file:
+      - variables.env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.adminer.entrypoints=websecure"
+      - "traefik.http.routers.adminer.rule=Host(`${ADMINERDOMAIN}`)"
+      - "traefik.http.routers.adminer.tls.certresolver=lets-encr"
+    networks:
+      - database
+      - web
+    depends_on:
+      - mariadb
+      
+  my-laravel-app:
+    image: laravel-proxy-in-local-storage
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    env_file:
+      - variables.env
+    ports:
+      - '8000'
+    environment:
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - DB_USERNAME=${DATABASE_USER}
+      - DB_DATABASE=${DATABASE_APP}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.my-laravel-app.entrypoints=websecure"
+      - "traefik.http.routers.my-laravel-app.rule=Host(`${APPDOMAIN}`)"
+      - "traefik.http.routers.my-laravel-app.tls.certresolver=lets-encr"
+      - "traefik.http.services.my-laravel-app.loadbalancer.server.port=8000"
+    volumes:
+      - 'my-laravel-app:/laravel/src/app'
+    networks:
+      database:
+        ipv4_address: 10.89.2.3
+      web:
+        ipv4_address: 10.90.2.3
+      
+    depends_on:
+      - mariadb
+  
+  ### descomentar en caso de querer desplegar portainer
+  #portainer:
+  #  image: portainer/portainer
+  #  container_name: portainer
+  #  hostname: portainer
+  #  env_file:
+  #    - variables.env
+  #  volumes:
+  #    - /var/run/docker.sock:/var/run/docker.sock:ro
+  #    - portainer_data:/data
+  #  labels:
+  #    - "traefik.enable=true"
+  #    - "traefik.http.routers.portainer.entrypoints=websecure"
+  #    - "traefik.http.routers.portainer.rule=Host(`${PORTAINERDOMAIN}`)"
+  #    - "traefik.http.routers.portainer.tls.certresolver=lets-encr"  
+
+
+networks:
+  web:
+    external: true
+    ipam:
+      driver: default
+      config:
+        - subnet: "10.90.2.0/24"
+  database:
+    external: true
+    ipam:
+      driver: default
+      config:
+        - subnet: "10.89.2.0/24"
+
+volumes:
+  #portainer_data:
+  mariadb_data:
+    driver: local
+  my-laravel-app:
+    driver: local

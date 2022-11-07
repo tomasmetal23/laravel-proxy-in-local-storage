@@ -6,10 +6,10 @@ Enter to traefik folder and read the README.md to set configs (optional)
 $ chmod 600 traefikv2-with-letsencrypt/acme.json
 
 ## Create the networking
-$ docker network create web --subnet=10.90.2.0/24
+$ docker network create web 
 
 
-$ docker network create database --subnet=10.89.2.0/24
+$ docker network create database 
 
 ## Edit environments
 $ cp example.env .env

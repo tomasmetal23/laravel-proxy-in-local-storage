@@ -103,6 +103,7 @@ services:
       DB_PORT: 3306
       DB_USERNAME: $MARIADB_USER
       DB_DATABASE: $MARIADB_DATABASE
+      DB_PASSWORD: $MARIADB_PASSWORD
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.my-laravel-app.entrypoints=websecure"

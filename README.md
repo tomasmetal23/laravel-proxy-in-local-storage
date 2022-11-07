@@ -1,7 +1,6 @@
 
 # laravel-proxy-in-local-storage for developing
 
-Enter to traefik folder and read the README.md to set configs (optional)
 
 $ chmod 600 traefikv2-with-letsencrypt/acme.json
 

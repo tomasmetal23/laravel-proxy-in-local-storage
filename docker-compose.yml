@@ -72,7 +72,7 @@ services:
       - 'mariadb_data:/bitnami/mariadb'
     networks:
       - database
-#        ipv4_address: 10.89.2.2
+
 
   adminer:
     image: adminer:4.8.0-standalone
@@ -85,7 +85,7 @@ services:
       - "traefik.http.routers.adminer.tls.certresolver=lets-encr"
     networks:
       - database
-      - web2
+      - web
     depends_on:
       - mariadb
       
@@ -110,10 +110,10 @@ services:
       - "traefik.http.routers.my-laravel-app.tls.certresolver=lets-encr"
       - "traefik.http.services.my-laravel-app.loadbalancer.server.port=8000"
     volumes:
-      - 'my-laravel-app:/app'
+      - './APP:/app'
     networks:
       - database
-      - web2      
+      - web      
     depends_on:
       - mariadb
   
@@ -135,8 +135,8 @@ services:
 
 
 networks:
-  web2:
-   external: true
+  web:
+    external: true
 
   database:
     external: false
@@ -147,6 +147,5 @@ volumes:
   #portainer_data:
   mariadb_data:
     driver: local
-  my-laravel-app:
-    driver: local
+  
   

@@ -16,8 +16,8 @@ entryPoints:
     address: ":80"
   websecure:
     address: ":443"
-  ws:
-    address: ":8080"
+#  ws:
+#      address: ":8080"
 
 providers:
   docker:
